@@ -1,11 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+import customtkinter
+import os
 
+# To dynamicznie znajdzie folder z customtkinter na KAŻDYM komputerze
+customtkinter_dir = os.path.dirname(customtkinter.__file__)
 
 a = Analysis(
     ['gui_translator.py'],
     pathex=[],
     binaries=[],
-    datas=[('/home/darek/Pulpit/AI-SRT-Translator-GitHub/venv/lib/python3.13/site-packages/customtkinter', 'customtkinter/'), ('icon.png', '.')],
+    # Tutaj używamy naszej dynamicznej ścieżki
+    datas=[(customtkinter_dir, 'customtkinter/'), ('icon.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
