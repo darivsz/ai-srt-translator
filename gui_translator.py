@@ -87,7 +87,7 @@ class TranslatorGUI(ctk.CTk):
         self.model_label.pack(side="left", padx=10, pady=10)
         
         saved_model = self.config_data.get("model", "gemini-2.5-flash")
-        valid_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+        valid_models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-flash-lite"]
         if saved_model not in valid_models:
              saved_model = "gemini-2.5-flash"
         
