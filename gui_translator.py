@@ -86,10 +86,10 @@ class TranslatorGUI(ctk.CTk):
         self.model_label = ctk.CTkLabel(self.model_frame, text="AI Engine Model:", font=ctk.CTkFont(size=14))
         self.model_label.pack(side="left", padx=10, pady=10)
         
-        saved_model = self.config_data.get("model", "gemini-2.5-flash")
-        valid_models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-flash-lite"]
+        saved_model = self.config_data.get("model", "gemini-3.6-flash")
+        valid_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
         if saved_model not in valid_models:
-             saved_model = "gemini-2.5-flash"
+             saved_model = "gemini-3.6-flash"
         
         self.model_var = ctk.StringVar(value=saved_model)
         self.model_dropdown = ctk.CTkOptionMenu(

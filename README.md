@@ -4,7 +4,7 @@ A powerful, fast, and UI-friendly tool to seamlessly translate `.srt` subtitle f
 
 ## Features
 - **Native GUI Interface**: Built with modern `customtkinter` with full Dark Mode support and native Linux file picker.
-- **Robust AI Integration**: Connects to `gemini-2.5-flash`, `gemini-2.5-pro`, or `gemini-3.1-flash-lite` for hyper-fast, colloquial natural translations.
+- **Robust AI Integration**: Connects to `gemini-3.6-flash`, `gemini-3.5-flash`, and `lite` variants for hyper-fast, colloquial natural translations.
 - **20+ Supported Languages**: Swedish, Norwegian, Polish, German, French, Spanish, Czech, and more.
 - **Resume Protection**: Automatically saves progress incrementally. If an API rate limit interrupts translations, just restart the app, insert the same file, and it will pick up exactly where it left off!
 - **Uneven Batch Fallback**: Protects against model hallucinations modifying array length using 1-by-1 fallback safety layers.

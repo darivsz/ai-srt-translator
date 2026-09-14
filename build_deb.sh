@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VERSION="1.4.0"
+VERSION="1.5.0"
 PACKAGE_NAME="ai-srt-translator"
 BUILD_DIR="deb_build/${PACKAGE_NAME}_${VERSION}_amd64"
 
