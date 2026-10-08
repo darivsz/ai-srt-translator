@@ -86,10 +86,10 @@ class TranslatorGUI(ctk.CTk):
         self.model_label = ctk.CTkLabel(self.model_frame, text="AI Engine Model:", font=ctk.CTkFont(size=14))
         self.model_label.pack(side="left", padx=10, pady=10)
         
-        saved_model = self.config_data.get("model", "gemini-3.6-flash")
-        valid_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+        saved_model = self.config_data.get("model", "gemini-3.8-flash")
+        valid_models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
         if saved_model not in valid_models:
-             saved_model = "gemini-3.6-flash"
+             saved_model = "gemini-3.8-flash"
         
         self.model_var = ctk.StringVar(value=saved_model)
         self.model_dropdown = ctk.CTkOptionMenu(
@@ -135,6 +135,18 @@ class TranslatorGUI(ctk.CTk):
         
         self.progress_label = ctk.CTkLabel(self, text="Progress: 0%")
         self.progress_label.pack()
+
+        self.stats_label = ctk.CTkLabel(self, text="Tokens used: 0 In | 0 Out ($0.00)", text_color="gray", font=ctk.CTkFont(size=11))
+        self.stats_label.pack()
+
+        self.pricing = {
+            "gemini-3.8-flash": {"in": 0.75, "out": 3.75},
+            "gemini-3.7-flash": {"in": 0.75, "out": 3.75},
+            "gemini-3.6-flash": {"in": 0.75, "out": 3.75},
+            "gemini-3.5-flash": {"in": 1.50, "out": 9.00},
+            "gemini-3.5-flash-lite": {"in": 0.30, "out": 2.50},
+            "gemini-3.1-flash-lite": {"in": 0.25, "out": 1.50}
+        }
 
         self.start_btn = ctk.CTkButton(self, text="START TRANSLATION", font=ctk.CTkFont(size=18, weight="bold"), height=50, command=self.start_translation)
         self.start_btn.pack(pady=(10, 20), padx=40, fill="x")
@@ -259,7 +271,9 @@ class TranslatorGUI(ctk.CTk):
                 if len(parsed_list) != len(texts):
                     raise Exception(f"Uneven batch size. Expected {len(texts)}, got {len(parsed_list)}.")
                     
-                return parsed_list
+                batch_in = response.usage_metadata.prompt_token_count if response.usage_metadata else 0
+                batch_out = response.usage_metadata.candidates_token_count if response.usage_metadata else 0
+                return parsed_list, batch_in, batch_out
                 
             except Exception as e:
                 error_msg = str(e).lower()
@@ -269,12 +283,14 @@ class TranslatorGUI(ctk.CTk):
                     time.sleep(wait_time)
                 elif "prohibited" in error_msg or "blocked" in error_msg or "safety" in error_msg or "none" in error_msg:
                     self.log(f"[Blocked] Google policy strictly blocked this scene's content. Skipping batch.")
-                    return texts
+                    return texts, 0, 0
                 else:
                     self.log(f"[Crash / Retry] {e} (Attempt {attempt + 1}/{max_retries})")
 
         self.log("[WARNING] Batch failed entirely. Entering 1-by-1 fallback mode...")
         fallback_list = []
+        total_in = 0
+        total_out = 0
         for single_text in texts:
             try:
                 # 1-by-1 safe generation
@@ -292,12 +308,14 @@ class TranslatorGUI(ctk.CTk):
                 )
                 res_dict = json.loads(re.sub(r'```(?:json)?|```', '', res.text).strip())
                 fallback_list.append(res_dict.get("translations", [single_text])[0])
+                total_in += res.usage_metadata.prompt_token_count if res.usage_metadata else 0
+                total_out += res.usage_metadata.candidates_token_count if res.usage_metadata else 0
                 time.sleep(1) # prevent hitting rate limits
             except Exception as e:
                 self.log(f"Single fallback failed. Keeping original text.")
                 fallback_list.append(single_text)
                 
-        return fallback_list
+        return fallback_list, total_in, total_out
 
 
     def run_translator_logic(self, api_key, target_lang):
@@ -312,16 +330,23 @@ class TranslatorGUI(ctk.CTk):
             progress_file = f"{base}_progress.json"
             
             start_index = 0
+            session_in_tokens = 0
+            session_out_tokens = 0
             if os.path.exists(output_file) and os.path.exists(progress_file):
                 try:
                      with open(progress_file, 'r', encoding='utf-8') as f:
-                         start_index = json.load(f).get("last_index", 0)
+                         prog_data = json.load(f)
+                         start_index = prog_data.get("last_index", 0)
+                         session_in_tokens = prog_data.get("in_tokens", 0)
+                         session_out_tokens = prog_data.get("out_tokens", 0)
                      self.log(f"🔄 Restored previously halted progress (Batch {start_index // batch_size + 1})")
                      with open(output_file, 'r', encoding='utf-8') as f:
                          subtitles = list(srt.parse(f.read()))
                 except Exception:
                     self.log("[Resume Error] Starting from scratch.")
                     start_index = 0
+                    session_in_tokens = 0
+                    session_out_tokens = 0
                     
             if start_index == 0:
                 with open(self.file_path, 'r', encoding='utf-8') as f:
@@ -335,7 +360,9 @@ class TranslatorGUI(ctk.CTk):
                 batch_texts = [sub.content for sub in batch_subs]
                 
                 try:
-                    translated_texts = self.translate_batch(client, model_selected, batch_texts, target_lang)
+                    translated_texts, batch_in, batch_out = self.translate_batch(client, model_selected, batch_texts, target_lang)
+                    session_in_tokens += batch_in
+                    session_out_tokens += batch_out
                 except Exception as ex:
                     self.log(f"\n[CRITICAL FAILURE] Process forcefully stopped: {ex}\nSaved state can be resumed later.")
                     break 
@@ -350,12 +377,12 @@ class TranslatorGUI(ctk.CTk):
                    f.write(srt.compose(subtitles))
                    
                 with open(progress_file, 'w', encoding='utf-8') as pf:
-                    json.dump({"last_index": i + batch_size}, pf)
+                    json.dump({"last_index": i + batch_size, "in_tokens": session_in_tokens, "out_tokens": session_out_tokens}, pf)
                     
                 current_progress = min(1.0, (i + batch_size) / total_subs)
                 percent = int(current_progress * 100)
                 
-                self.after(0, lambda p=current_progress, perc=percent: self.update_progress(p, perc))
+                self.after(0, lambda p=current_progress, perc=percent, in_tok=session_in_tokens, out_tok=session_out_tokens: self.update_progress(p, perc, in_tok, out_tok))
 
             if os.path.exists(progress_file):
                 os.remove(progress_file)
@@ -367,9 +394,14 @@ class TranslatorGUI(ctk.CTk):
             self.log(f"GENERAL DISASTER: {god_error}")
             self.after(0, self.finish_translation)
 
-    def update_progress(self, current_progress, percent):
+    def update_progress(self, current_progress, percent, in_tok=0, out_tok=0):
          self.progress_bar.set(current_progress)
          self.progress_label.configure(text=f"Progress: {percent}%")
+         
+         model_selected = self.model_var.get()
+         prices = self.pricing.get(model_selected, {"in": 0, "out": 0})
+         cost = (in_tok / 1_000_000) * prices["in"] + (out_tok / 1_000_000) * prices["out"]
+         self.stats_label.configure(text=f"Tokens: {in_tok} In | {out_tok} Out (Est. Cost: ${cost:.4f})")
 
     def finish_translation(self):
          self.is_translating = False
